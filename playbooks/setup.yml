@@ -1,0 +1,138 @@
+- name: Установка и настройка Docker на app серверах
+  hosts: app
+  become: yes
+  tasks:
+    - name: Обновление apt cache (для Ubuntu)
+      apt:
+        update_cache: yes
+      when: ansible_distribution == "Ubuntu"
+
+    - name: Обновление dnf cache (для CentOS)
+      dnf:
+        update_cache: yes
+      when: ansible_distribution == "CentOS"
+
+    - name: Установка зависимостей
+      package:
+        name:
+          - apt-transport-https
+          - ca-certificates
+          - curl
+          - gnupg
+          - lsb-release
+        state: present
+      when: ansible_distribution == "Ubuntu"
+
+    - name: Добавление Docker GPG ключа (Ubuntu)
+      apt_key:
+        url: https://download.docker.com/linux/ubuntu/gpg
+        state: present
+      when: ansible_distribution == "Ubuntu"
+
+    - name: Добавление Docker GPG ключа (CentOS)
+      rpm_key:
+        key: https://download.docker.com/linux/centos/gpg
+        state: present
+      when: ansible_distribution == "CentOS"
+
+    - name: Добавление Docker репозитория (Ubuntu)
+      apt_repository:
+        repo: "deb [arch=amd64] https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable"
+        state: present
+      when: ansible_distribution == "Ubuntu"
+
+    - name: Добавление Docker репозитория (CentOS)
+      copy:
+        content: |
+          [docker-ce-stable]
+          name=Docker CE Stable - $basearch
+          baseurl=https://download.docker.com/linux/centos/$releasever/$basearch/stable
+          enabled=1
+          gpgcheck=1
+          gpgkey=https://download.docker.com/linux/centos/gpg
+        dest: /etc/yum.repos.d/docker-ce.repo
+        owner: root
+        group: root
+        mode: '0644'
+      when: ansible_distribution == "CentOS"
+
+    - name: Установка Docker
+      package:
+        name:
+          - docker-ce
+          - docker-ce-cli
+          - containerd.io
+        state: present
+
+    - name: Запуск и включение Docker службы
+      systemd:
+        name: docker
+        state: started
+        enabled: yes
+
+    - name: Добавление пользователя в группу docker
+      user:
+        name: "{{ ansible_user }}"
+        groups: docker
+        append: yes
+
+- name: Установка PostgreSQL на database серверах
+  hosts: database
+  become: yes
+  tasks:
+    - name: Установка PostgreSQL (Ubuntu)
+      apt:
+        name: "postgresql-{{ postgresql_version }}"
+        state: present
+      when: ansible_distribution == "Ubuntu"
+
+    - name: Установка PostgreSQL (CentOS)
+      dnf:
+        name: "postgresql{{ postgresql_version }}-server"
+        state: present
+      when: ansible_distribution == "CentOS"
+
+    - name: Создание data директории
+      become: yes
+      file:
+        path: "{{ postgresql_data_directory }}"
+        state: directory
+        owner: postgres
+        group: postgres
+        mode: '0700'
+
+    - name: Проверка существования кластера PostgreSQL (Ubuntu)
+      shell: "pg_lsclusters | grep '{{ postgresql_version }}/main'"
+      register: cluster_check
+      ignore_errors: yes
+      changed_when: false
+      when: ansible_distribution == "Ubuntu"
+
+    - name: Инициализация базы данных
+      command: "sudo -u postgres pg_createcluster {{ postgresql_version }} main -d {{ postgresql_data_directory }}"
+      args:
+        creates: "{{ postgresql_data_directory }}/postgresql.conf"
+      when:
+        - ansible_distribution == "Ubuntu"
+        - cluster_check.rc != 0
+
+    - name: Настройка postgresql.conf
+      template:
+        src: /home/ansible/ansible/templates/postgresql.conf.j2
+        dest: "{{ postgresql_data_directory }}/postgresql.conf"
+        owner: postgres
+        group: postgres
+        mode: '0640'
+      notify: restart postgresql
+
+    - name: Запуск и включение PostgreSQL службы
+      systemd:
+        name: "postgresql"
+        state: started
+        enabled: yes
+
+  handlers:
+    - name: restart postgresql
+      systemd:
+        name: "postgresql"
+        state: restarted

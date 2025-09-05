@@ -1,0 +1,48 @@
+# PostgreSQL configuration file
+
+#------------------------------------------------------------------------------
+# CONNECTIONS AND AUTHENTICATION
+#------------------------------------------------------------------------------
+
+listen_addresses = '*'          # what IP address(es) to listen on;
+port = {{ postgresql_port }}    # (change requires restart)
+max_connections = 100           # (change requires restart)
+
+#------------------------------------------------------------------------------
+# RESOURCE USAGE (except WAL)
+#------------------------------------------------------------------------------
+
+shared_buffers = 128MB          # min 128kB
+dynamic_shared_memory_type = posix  # the default is the first option
+
+#------------------------------------------------------------------------------
+# WRITE-AHEAD LOG
+#------------------------------------------------------------------------------
+
+wal_level = replica             # minimal, replica, or logical
+fsync = on                      # flush data to disk for crash safety
+
+#------------------------------------------------------------------------------
+# REPORTING AND LOGGING
+#------------------------------------------------------------------------------
+
+logging_collector = on          # Enable capturing of stderr and csvlog
+log_directory = 'pg_log'        # directory where log files are written
+log_filename = 'postgresql-%a.log'  # log file name pattern
+
+#------------------------------------------------------------------------------
+# CLIENT CONNECTION DEFAULTS
+#------------------------------------------------------------------------------
+
+datestyle = 'iso, mdy'
+timezone = '{{ timezone }}'
+lc_messages = 'en_US.UTF-8'     # locale for system error message
+lc_monetary = 'en_US.UTF-8'     # locale for monetary formatting
+lc_numeric = 'en_US.UTF-8'      # locale for number formatting
+lc_time = 'en_US.UTF-8'         # locale for time formatting
+
+#------------------------------------------------------------------------------
+# CONFIG FILE INCLUDES
+#------------------------------------------------------------------------------
+
+include_dir = 'conf.d'          # include files ending in '.conf' from

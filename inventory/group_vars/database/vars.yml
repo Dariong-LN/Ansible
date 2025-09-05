@@ -1,0 +1,4 @@
+# PostgreSQL переменные
+postgresql_version: "12"
+postgresql_data_directory: "/var/lib/pgsql/{{ postgresql_version }}/data"
+postgresql_port: 5432
